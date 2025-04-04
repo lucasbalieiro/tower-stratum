@@ -8,6 +8,7 @@ use crate::server::service::response::Sv2MessageToClient;
 use crate::server::service::subprotocols::mining::handler::NullSv2MiningServerHandler;
 use crate::server::service::subprotocols::mining::handler::Sv2MiningServerHandler;
 use crate::server::tcp::encrypted::start_encrypted_tcp_server;
+use crate::server::tcp::unencrypted::start_unencrypted_tcp_server;
 use crate::server::ClientIdGenerator;
 use roles_logic_sv2::common_messages_sv2::{
     Protocol, SetupConnection, SetupConnectionError, SetupConnectionSuccess,
@@ -93,16 +94,26 @@ where
 
         let shutdown_rx = self.shutdown_tx.subscribe();
 
-        start_encrypted_tcp_server(
-            self.config.tcp_config.listen_address,
-            self.config.tcp_config.pub_key,
-            self.config.tcp_config.priv_key,
-            self.config.tcp_config.cert_validity,
-            new_client_tx,
-            shutdown_rx.resubscribe(),
-        )
-        .await
-        .map_err(|_e| Sv2ServerServiceError::TcpServerError)?;
+        if self.config.use_encrypted_socket {
+            start_encrypted_tcp_server(
+                self.config.tcp_config.listen_address,
+                self.config.tcp_config.pub_key,
+                self.config.tcp_config.priv_key,
+                self.config.tcp_config.cert_validity,
+                new_client_tx,
+                shutdown_rx.resubscribe(),
+            )
+            .await
+            .map_err(|_e| Sv2ServerServiceError::TcpServerError)?;
+        } else {
+            start_unencrypted_tcp_server(
+                self.config.tcp_config.listen_address,
+                new_client_tx,
+                shutdown_rx.resubscribe(),
+            )
+            .await
+            .map_err(|_e| Sv2ServerServiceError::TcpServerError)?;
+        }
 
         let clients = self.clients.clone();
         let inactivity_limit = self.config.inactivity_limit;
@@ -328,7 +339,10 @@ where
         req: SetupConnection<'static>,
         client_id: u32,
     ) -> Result<ResponseFromSv2Server<'static>, RequestToSv2ServerError> {
-        debug!("Sv2ServerService received a SetupConnection request: {:?}", req);
+        debug!(
+            "Sv2ServerService received a SetupConnection request: {:?}",
+            req
+        );
 
         // 1) Check subprotocol
         if !self.config.supported_protocols().contains(&req.protocol) {
@@ -806,6 +820,7 @@ mod tests {
             mining_config: None,
             job_declaration_config: Some(job_declaration_config),
             template_distribution_config: None,
+            use_encrypted_socket: true,
         };
 
         let mining_handler = NullSv2MiningServerHandler;
@@ -931,6 +946,7 @@ mod tests {
             job_declaration_config: Some(job_declaration_config),
             mining_config: None,
             template_distribution_config: None,
+            use_encrypted_socket: true,
         };
 
         let mining_handler = NullSv2MiningServerHandler;
@@ -1030,6 +1046,7 @@ mod tests {
             job_declaration_config: Some(job_declaration_config),
             mining_config: None,
             template_distribution_config: None,
+            use_encrypted_socket: true,
         };
 
         let mining_handler = NullSv2MiningServerHandler;
@@ -1139,6 +1156,7 @@ mod tests {
             job_declaration_config: Some(job_declaration_config),
             mining_config: None,
             template_distribution_config: None,
+            use_encrypted_socket: true,
         };
 
         let mining_handler = NullSv2MiningServerHandler;
@@ -1296,6 +1314,7 @@ mod tests {
             job_declaration_config: Some(job_declaration_config),
             mining_config: None,
             template_distribution_config: None,
+            use_encrypted_socket: true,
         };
 
         let mining_handler = NullSv2MiningServerHandler;
@@ -1393,6 +1412,7 @@ mod tests {
             mining_config: Some(mining_config),
             job_declaration_config: None,
             template_distribution_config: None,
+            use_encrypted_socket: true,
         };
 
         // Create a null mining handler
@@ -1447,6 +1467,7 @@ mod tests {
             template_distribution_config: None,
             inactivity_limit: 1,
             tcp_config,
+            use_encrypted_socket: true,
         };
 
         let mining_handler = NullSv2MiningServerHandler;
@@ -1503,6 +1524,7 @@ mod tests {
             template_distribution_config: None,
             inactivity_limit: 10, // Set higher to prevent automatic cleanup
             tcp_config,
+            use_encrypted_socket: true,
         };
 
         let mining_handler = NullSv2MiningServerHandler;

@@ -17,6 +17,7 @@ pub struct Sv2ServerServiceConfig {
     pub mining_config: Option<Sv2ServerServiceMiningConfig>,
     pub job_declaration_config: Option<Sv2ServerServiceJobDeclarationConfig>,
     pub template_distribution_config: Option<Sv2ServerServiceTemplateDistributionConfig>,
+    pub use_encrypted_socket: bool,
 }
 
 impl Sv2ServerServiceConfig {
